@@ -1,0 +1,306 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserType {
+  ALUMNI
+  STAFF
+  NON_ALUMNI
+}
+
+enum UserRole {
+  ADMIN
+  ALUMNI_MEMBER
+  QUEST_STAFF
+  NON_ALUMNI_MEMBER
+  LOAN_MANAGER
+}
+
+enum UserStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DISABLED
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+enum CardStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum LoanStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  FUNDS_TRANSFERRED
+  ACTIVE_LOAN
+  COMPLETED
+  CLOSED
+}
+
+enum RepaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+model User {
+  id              String      @id @default(uuid())
+  email           String      @unique
+  passwordHash    String
+  userType        UserType
+  role            UserRole
+  status          UserStatus  @default(PENDING)
+  isLoanEligible  Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  approvedAt      DateTime?
+  approvedById    String?
+  
+  approvedBy      User?       @relation("UserApprovals", fields: [approvedById], references: [id])
+  approvals       User[]      @relation("UserApprovals")
+  
+  profile         Profile?
+  membershipCard  MembershipCard?
+  loanApplications LoanApplication[] @relation("LoanApplicant")
+  guaranteedLoans1 LoanApplication[] @relation("Guarantor1")
+  guaranteedLoans2 LoanApplication[] @relation("Guarantor2")
+  reviewedLoans   LoanApplication[] @relation("LoanReviewer")
+  approvedLoans   LoanApplication[] @relation("LoanApprover")
+  createdLoanCategories LoanCategory[]
+  auditLogs       AuditLog[]
+
+  @@index([email])
+  @@index([status])
+  @@index([userType])
+  @@index([role])
+}
+
+model Profile {
+  id                  String    @id @default(uuid())
+  userId              String    @unique
+  fullName            String
+  profilePhotoUrl     String?
+  alumniId            String?   @unique
+  batchYear           Int?
+  department          String?
+  course              String?
+  
+  currentlyWorking    Boolean   @default(false)
+  currentlyStudying   Boolean   @default(false)
+  city                String?
+  state               String?
+  country             String?
+  
+  maritalStatus       MaritalStatus?
+  spouseName          String?
+  childrenCount       Int       @default(0)
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  privacySettings     ProfilePrivacySettings?
+  contactDetails      ContactDetails?
+  educationRecords    EducationRecord[]
+  jobExperiences      JobExperience[]
+
+  @@index([userId])
+  @@index([alumniId])
+  @@index([batchYear])
+  @@index([department])
+}
+
+model ProfilePrivacySettings {
+  id                      String   @id @default(uuid())
+  profileId               String   @unique
+  familyDetailsVisible    Boolean  @default(false)
+  educationVisible        Boolean  @default(false)
+  jobHistoryVisible       Boolean  @default(false)
+  currentJobVisible       Boolean  @default(true)
+  contactDetailsVisible   Boolean  @default(true)
+  
+  profile                 Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+}
+
+model ContactDetails {
+  id            String   @id @default(uuid())
+  profileId     String   @unique
+  phone         String?
+  whatsapp      String?
+  email         String?
+  linkedinUrl   String?
+  instagramUrl  String?
+  otherLinks    Json?
+  
+  profile       Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+}
+
+model EducationRecord {
+  id                  String   @id @default(uuid())
+  profileId           String
+  institution         String
+  degree              String
+  fieldOfStudy        String?
+  startYear           Int
+  endYear             Int?
+  currentlyStudying   Boolean  @default(false)
+  displayOrder        Int      @default(0)
+  createdAt           DateTime @default(now())
+  
+  profile             Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([institution])
+}
+
+model JobExperience {
+  id                String    @id @default(uuid())
+  profileId         String
+  companyName       String
+  jobTitle          String
+  industry          String?
+  startDate         DateTime
+  endDate           DateTime?
+  currentlyWorking  Boolean   @default(false)
+  jobLocation       String?
+  displayOrder      Int       @default(0)
+  createdAt         DateTime  @default(now())
+  
+  profile           Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([companyName])
+  @@index([jobTitle])
+  @@index([currentlyWorking])
+}
+
+model MembershipCard {
+  id                  String      @id @default(uuid())
+  userId              String      @unique
+  cardNumber          String      @unique
+  qrCodeData          String
+  qrCodeUrl           String?
+  cardStatus          CardStatus  @default(ACTIVE)
+  issuedAt            DateTime    @default(now())
+  lastRegeneratedAt   DateTime?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  
+  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LoanCategory {
+  id                          String    @id @default(uuid())
+  name                        String
+  description                 String?
+  maxLoanAmount               Decimal   @db.Decimal(12, 2)
+  monthlyInterestRate         Decimal   @db.Decimal(5, 2)
+  repaymentDurationMonths     Int
+  guarantorActiveLoanLimit    Int       @default(3)
+  isEnabled                   Boolean   @default(true)
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+  createdById                 String?
+  
+  createdBy                   User?     @relation(fields: [createdById], references: [id])
+  loanApplications            LoanApplication[]
+}
+
+model LoanApplication {
+  id                      String        @id @default(uuid())
+  applicantId             String
+  loanCategoryId          String
+  loanAmount              Decimal       @db.Decimal(12, 2)
+  monthlyInterest         Decimal       @db.Decimal(12, 2)
+  totalPayable            Decimal       @db.Decimal(12, 2)
+  emiAmount               Decimal       @db.Decimal(12, 2)
+  repaymentMonths         Int
+  
+  status                  LoanStatus    @default(SUBMITTED)
+  
+  guarantor1Id            String?
+  guarantor1Confirmed     Boolean       @default(false)
+  guarantor2Id            String?
+  guarantor2Confirmed     Boolean       @default(false)
+  
+  purpose                 String?
+  remarks                 String?
+  rejectionReason         String?
+  
+  submittedAt             DateTime      @default(now())
+  reviewedAt              DateTime?
+  approvedAt              DateTime?
+  fundsTransferredAt      DateTime?
+  completedAt             DateTime?
+  
+  reviewedById            String?
+  approvedById            String?
+  
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  
+  applicant               User          @relation("LoanApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
+  loanCategory            LoanCategory  @relation(fields: [loanCategoryId], references: [id])
+  guarantor1              User?         @relation("Guarantor1", fields: [guarantor1Id], references: [id])
+  guarantor2              User?         @relation("Guarantor2", fields: [guarantor2Id], references: [id])
+  reviewedBy              User?         @relation("LoanReviewer", fields: [reviewedById], references: [id])
+  approvedBy              User?         @relation("LoanApprover", fields: [approvedById], references: [id])
+  repayments              LoanRepayment[]
+
+  @@index([applicantId])
+  @@index([status])
+  @@index([guarantor1Id])
+  @@index([guarantor2Id])
+  @@index([loanCategoryId])
+}
+
+model LoanRepayment {
+  id                  String          @id @default(uuid())
+  loanApplicationId   String
+  repaymentMonth      Int
+  dueAmount           Decimal         @db.Decimal(12, 2)
+  paidAmount          Decimal         @db.Decimal(12, 2) @default(0)
+  dueDate             DateTime
+  paidDate            DateTime?
+  paymentStatus       RepaymentStatus @default(PENDING)
+  remarks             String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  
+  loanApplication     LoanApplication @relation(fields: [loanApplicationId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String    @id @default(uuid())
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime  @default(now())
+  
+  user        User?     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([timestamp])
+}

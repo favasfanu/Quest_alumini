@@ -1,0 +1,75 @@
+import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { prisma } from '@/lib/prisma'
+import { mkdir, writeFile } from 'fs/promises'
+import path from 'path'
+
+export const runtime = 'nodejs'
+
+const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024 // 2MB
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+
+export async function POST(request: Request) {
+  const session = await getServerSession(authOptions)
+
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    const formData = await request.formData()
+    const file = formData.get('file')
+    const targetUserId = (formData.get('userId') as string | null) || session.user.id
+
+    // Only admins can upload for another user
+    if (targetUserId !== session.user.id && session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    if (!file || !(file instanceof File)) {
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+    }
+
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      return NextResponse.json(
+        { error: 'Invalid file type. Only JPEG, PNG, and WebP are allowed.' },
+        { status: 400 },
+      )
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return NextResponse.json(
+        { error: 'File too large. Maximum size is 2MB.' },
+        { status: 400 },
+      )
+    }
+
+    const bytes = await file.arrayBuffer()
+    const buffer = Buffer.from(bytes)
+
+    const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
+    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'profile-photos')
+    await mkdir(uploadsDir, { recursive: true })
+
+    const fileName = `${targetUserId}-${Date.now()}.${extension}`
+    const filePath = path.join(uploadsDir, fileName)
+
+    await writeFile(filePath, buffer)
+
+    const publicUrl = `/uploads/profile-photos/${fileName}`
+
+    const profile = await prisma.profile.update({
+      where: { userId: targetUserId },
+      data: {
+        profilePhotoUrl: publicUrl,
+      },
+    })
+
+    return NextResponse.json({ profilePhotoUrl: profile.profilePhotoUrl })
+  } catch (error) {
+    console.error('Error uploading profile photo:', error)
+    return NextResponse.json({ error: 'Failed to upload profile photo' }, { status: 500 })
+  }
+}
+
