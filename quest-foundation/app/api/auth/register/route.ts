@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/auth'
+import { UserRole } from '@prisma/client'
 import { z } from 'zod'
 
 const registerSchema = z.object({
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
 
     const passwordHash = await hashPassword(validatedData.password)
 
-    let role
+    let role: UserRole
     if (validatedData.userType === 'ALUMNI') {
       role = 'ALUMNI_MEMBER'
     } else if (validatedData.userType === 'STAFF') {

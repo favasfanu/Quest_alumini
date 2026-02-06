@@ -77,11 +77,13 @@ model User {
   
   profile         Profile?
   membershipCard  MembershipCard?
+  cardTemplates   CardTemplate[]
   loanApplications LoanApplication[] @relation("LoanApplicant")
   guaranteedLoans1 LoanApplication[] @relation("Guarantor1")
   guaranteedLoans2 LoanApplication[] @relation("Guarantor2")
   reviewedLoans   LoanApplication[] @relation("LoanReviewer")
   approvedLoans   LoanApplication[] @relation("LoanApprover")
+  assignedLoans   LoanApplication[] @relation("LoanAssignee")
   createdLoanCategories LoanCategory[]
   auditLogs       AuditLog[]
 
@@ -205,6 +207,17 @@ model MembershipCard {
   user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model CardTemplate {
+  id                  String      @id @default(cuid())
+  templateUrl         String?
+  uploadedAt          DateTime?
+  uploadedById        String?
+  
+  uploadedBy          User?       @relation(fields: [uploadedById], references: [id])
+  
+  @@unique([id])
+}
+
 model LoanCategory {
   id                          String    @id @default(uuid())
   name                        String
@@ -251,6 +264,8 @@ model LoanApplication {
   
   reviewedById            String?
   approvedById            String?
+  assignedToId            String?
+  assignedAt              DateTime?
   
   createdAt               DateTime      @default(now())
   updatedAt               DateTime      @updatedAt
@@ -261,6 +276,7 @@ model LoanApplication {
   guarantor2              User?         @relation("Guarantor2", fields: [guarantor2Id], references: [id])
   reviewedBy              User?         @relation("LoanReviewer", fields: [reviewedById], references: [id])
   approvedBy              User?         @relation("LoanApprover", fields: [approvedById], references: [id])
+  assignedTo              User?         @relation("LoanAssignee", fields: [assignedToId], references: [id])
   repayments              LoanRepayment[]
 
   @@index([applicantId])
@@ -268,6 +284,7 @@ model LoanApplication {
   @@index([guarantor1Id])
   @@index([guarantor2Id])
   @@index([loanCategoryId])
+  @@index([assignedToId])
 }
 
 model LoanRepayment {

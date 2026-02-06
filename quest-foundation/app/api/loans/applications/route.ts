@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth-config'
 import { prisma } from '@/lib/prisma'
 import { calculateLoan } from '@/lib/loan-calculator'
 import { createAuditLog } from '@/lib/audit'
@@ -45,7 +45,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  if (!session.user.isLoanEligible) {
+  // Check eligibility from database, not cached session
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { isLoanEligible: true },
+  })
+
+  if (!user?.isLoanEligible) {
     return NextResponse.json({ error: 'You are not eligible for loans' }, { status: 403 })
   }
 

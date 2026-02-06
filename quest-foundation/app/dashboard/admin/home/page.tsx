@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth-config'
+import { prisma } from '@/lib/prisma'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Users, CreditCard, Settings, FileText } from 'lucide-react'
 import Link from 'next/link'
@@ -8,7 +9,12 @@ import Link from 'next/link'
 export default async function AdminHomePage() {
   const session = await getServerSession(authOptions)
 
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session) {
+    redirect('/dashboard')
+  }
+
+  const dbUser = await prisma.user.findUnique({ where: { id: session.user.id }, select: { role: true } })
+  if (!dbUser || dbUser.role !== 'ADMIN') {
     redirect('/dashboard')
   }
 

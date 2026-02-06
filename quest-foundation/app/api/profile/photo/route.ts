@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth-config'
 import { prisma } from '@/lib/prisma'
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
@@ -18,16 +18,28 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Check DB role (not cached session)
+    const dbUser = await prisma.user.findUnique({ where: { id: session.user.id }, select: { role: true } })
+    if (!dbUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const formData = await request.formData()
     const file = formData.get('file')
     const targetUserId = (formData.get('userId') as string | null) || session.user.id
 
     // Only admins can upload for another user
-    if (targetUserId !== session.user.id && session.user.role !== 'ADMIN') {
+    if (targetUserId !== session.user.id && dbUser.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    if (!file || !(file instanceof File)) {
+    // Verify target user's profile exists
+    const targetProfile = await prisma.profile.findUnique({ where: { userId: targetUserId } })
+    if (!targetProfile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+    }
+
+    if (!file || typeof file !== 'object' || !('arrayBuffer' in file)) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 

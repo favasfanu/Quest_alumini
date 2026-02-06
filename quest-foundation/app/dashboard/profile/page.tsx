@@ -1,13 +1,216 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, ChangeEvent, FormEvent } from 'react'
 import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Edit, Trash2, Save, X } from 'lucide-react'
+import { Plus, Edit, Trash2, Save, X, Upload } from 'lucide-react'
+import Image from 'next/image'
+
+const COUNTRY_STATE_OPTIONS: Record<string, string[]> = {
+  Afghanistan: ['Kabul', 'Kandahar', 'Herat', 'Mazar-i-Sharif'],
+  Albania: ['Tirana', 'Durres', 'Vlore', 'Shkoder'],
+  Algeria: ['Algiers', 'Oran', 'Constantine', 'Annaba'],
+  Andorra: ['Andorra la Vella', 'Escaldes-Engordany'],
+  Angola: ['Luanda', 'Huambo', 'Benguela', 'Cabinda'],
+  Argentina: ['Buenos Aires', 'Cordoba', 'Rosario', 'Mendoza', 'La Plata'],
+  Armenia: ['Yerevan', 'Gumri', 'Vanadzor'],
+  Australia: ['New South Wales', 'Victoria', 'Queensland', 'South Australia', 'Western Australia', 'Tasmania', 'ACT'],
+  Austria: ['Vienna', 'Graz', 'Linz', 'Salzburg', 'Innsbruck'],
+  Azerbaijan: ['Baku', 'Ganja', 'Sumgait', 'Quba'],
+  Bahamas: ['Nassau', 'Freeport', 'Marsh Harbour'],
+  Bahrain: ['Manama', 'Riffa', 'Muharraq'],
+  Bangladesh: ['Dhaka', 'Chittagong', 'Khulna', 'Rajshahi', 'Sylhet'],
+  Barbados: ['Bridgetown', 'Speightstown', 'Oistins'],
+  Belarus: ['Minsk', 'Brest', 'Vitebsk', 'Gomel'],
+  Belgium: ['Brussels', 'Antwerp', 'Ghent', 'Charleroi', 'Liege'],
+  Belize: ['Belize City', 'San Ignacio', 'Orange Walk'],
+  Benin: ['Porto-Novo', 'Cotonou', 'Parakou'],
+  Bhutan: ['Thimphu', 'Paro', 'Punakha'],
+  Bolivia: ['La Paz', 'Santa Cruz', 'Cochabamba', 'Sucre'],
+  'Bosnia and Herzegovina': ['Sarajevo', 'Banja Luka', 'Zenica', 'Tuzla'],
+  Botswana: ['Gaborone', 'Francistown', 'Molepolole'],
+  Brazil: ['Sao Paulo', 'Rio de Janeiro', 'Bahia', 'Minas Gerais', 'Parana', 'Santa Catarina', 'Rio Grande do Sul'],
+  Brunei: ['Bandar Seri Begawan', 'Kuala Belait'],
+  Bulgaria: ['Sofia', 'Plovdiv', 'Varna', 'Burgas'],
+  'Burkina Faso': ['Ouagadougou', 'Bobo-Dioulasso', 'Koudougou'],
+  Burundi: ['Gitega', 'Bujumbura'],
+  Cambodia: ['Phnom Penh', 'Siem Reap', 'Battambang', 'Sihanoukville'],
+  Cameroon: ['Yaounde', 'Douala', 'Garoua', 'Buea'],
+  Canada: ['Ontario', 'Quebec', 'British Columbia', 'Alberta', 'Manitoba', 'Saskatchewan', 'Nova Scotia', 'Prince Edward Island', 'Newfoundland and Labrador'],
+  'Cape Verde': ['Praia', 'Mindelo'],
+  'Central African Republic': ['Bangui', 'Berberati', 'Bouar'],
+  Chad: ['NDjamena', 'Sarh', 'Moundou'],
+  Chile: ['Santiago', 'Valparaiso', 'Concepcion', 'Valdivia'],
+  China: ['Beijing', 'Shanghai', 'Guangdong', 'Sichuan', 'Jiangsu', 'Zhejiang', 'Hunan', 'Anhui'],
+  Colombia: ['Bogota', 'Medellin', 'Cali', 'Barranquilla', 'Cartagena'],
+  Comoros: ['Moroni', 'Mutsamudu'],
+  Congo: ['Brazzaville', 'Pointe-Noire'],
+  'Costa Rica': ['San Jose', 'Alajuela', 'Cartago', 'Puntarenas'],
+  'Cote dIvoire': ['Yamoussoukro', 'Abidjan', 'Bouake'],
+  Croatia: ['Zagreb', 'Split', 'Rijeka', 'Osijek'],
+  Cuba: ['Havana', 'Santiago de Cuba', 'Camaguey'],
+  Cyprus: ['Nicosia', 'Limassol', 'Larnaca'],
+  'Czech Republic': ['Prague', 'Brno', 'Ostrava', 'Plzen'],
+  Denmark: ['Copenhagen', 'Aarhus', 'Odense', 'Aalborg'],
+  Djibouti: ['Djibouti City', 'Arta'],
+  Dominica: ['Roseau', 'Portsmouth'],
+  'Dominican Republic': ['Santo Domingo', 'Santiago', 'Puerto Plata'],
+  Ecuador: ['Quito', 'Guayaquil', 'Cuenca', 'Ambato'],
+  Egypt: ['Cairo', 'Alexandria', 'Giza', 'Aswan', 'Luxor'],
+  'El Salvador': ['San Salvador', 'Santa Ana', 'San Miguel'],
+  'Equatorial Guinea': ['Malabo', 'Bata'],
+  Eritrea: ['Asmara', 'Assab'],
+  Estonia: ['Tallinn', 'Tartu', 'Narva', 'Parnu'],
+  Ethiopia: ['Addis Ababa', 'Dire Dawa', 'Adama'],
+  Fiji: ['Suva', 'Nadi', 'Lautoka'],
+  Finland: ['Helsinki', 'Espoo', 'Tampere', 'Turku'],
+  France: ['Paris', 'Marseille', 'Lyon', 'Toulouse', 'Provence-Alpes-Cote d Azur', 'Rhone-Alpes'],
+  Gabon: ['Libreville', 'Port-Gentil'],
+  Gambia: ['Banjul', 'Serekunda'],
+  Georgia: ['Tbilisi', 'Kutaisi', 'Batumi', 'Gori'],
+  Germany: ['Berlin', 'Munich', 'Hamburg', 'Cologne', 'Frankfurt', 'Stuttgart', 'Dusseldorf'],
+  Ghana: ['Accra', 'Kumasi', 'Takoradi', 'Sekondi'],
+  Greece: ['Athens', 'Thessaloniki', 'Patras', 'Heraklion'],
+  Grenada: ['St Georges', 'Gouyave'],
+  Guatemala: ['Guatemala City', 'Quetzaltenango', 'Antigua'],
+  Guinea: ['Conakry', 'Kindia', 'Mamou'],
+  'Guinea-Bissau': ['Bissau', 'Bafata'],
+  Guyana: ['Georgetown', 'Linden', 'New Amsterdam'],
+  Haiti: ['Port-au-Prince', 'Cap-Haitien', 'Jacmel'],
+  Honduras: ['Tegucigalpa', 'San Pedro Sula', 'La Ceiba'],
+  'Hong Kong': ['Hong Kong Island', 'Kowloon', 'New Territories'],
+  Hungary: ['Budapest', 'Debrecen', 'Szeged', 'Pecs'],
+  Iceland: ['Reykjavik', 'Kopavogur', 'Hafnarfjordur'],
+  India: ['Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Delhi', 'Puducherry', 'Ladakh', 'Jammu and Kashmir'],
+  Indonesia: ['Jakarta', 'Surabaya', 'Bandung', 'Medan', 'Semarang', 'Makassar', 'Palembang'],
+  Iran: ['Tehran', 'Isfahan', 'Mashhad', 'Tabriz', 'Shiraz'],
+  Iraq: ['Baghdad', 'Basra', 'Mosul', 'Erbil'],
+  Ireland: ['Dublin', 'Cork', 'Limerick', 'Galway'],
+  Israel: ['Jerusalem', 'Tel Aviv', 'Haifa', 'Beer Sheva'],
+  Italy: ['Rome', 'Milan', 'Naples', 'Turin', 'Venice', 'Florence'],
+  Jamaica: ['Kingston', 'Montego Bay', 'Spanish Town'],
+  Japan: ['Tokyo', 'Osaka', 'Yokohama', 'Kyoto', 'Nagoya', 'Sapporo'],
+  Jordan: ['Amman', 'Zarqa', 'Irbid', 'Aqaba'],
+  Kazakhstan: ['Nur-Sultan', 'Almaty', 'Karaganda', 'Shymkent'],
+  Kenya: ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru'],
+  Kiribati: ['Tarawa', 'Butaritari'],
+  Kuwait: ['Kuwait City', 'Al Ahmadi', 'Hawalli'],
+  Kyrgyzstan: ['Bishkek', 'Osh', 'Jalal-Abad'],
+  Laos: ['Vientiane', 'Luang Prabang', 'Savannakhet'],
+  Latvia: ['Riga', 'Daugavpils', 'Liepaja'],
+  Lebanon: ['Beirut', 'Tripoli', 'Sidon', 'Tyre'],
+  Lesotho: ['Maseru', 'Teyateyaneng'],
+  Liberia: ['Monrovia', 'Gbarnga', 'Kakata'],
+  Libya: ['Tripoli', 'Benghazi', 'Misrata'],
+  Liechtenstein: ['Vaduz', 'Schaan'],
+  Lithuania: ['Vilnius', 'Kaunas', 'Klaipeda'],
+  Luxembourg: ['Luxembourg City', 'Esch-sur-Alzette'],
+  Macao: ['Macao City', 'Taipa'],
+  Madagascar: ['Antananarivo', 'Toliara', 'Antsirabe'],
+  Malawi: ['Lilongwe', 'Blantyre', 'Mzuzu'],
+  Malaysia: ['Kuala Lumpur', 'George Town', 'Ipoh', 'Klang', 'Johor Bahru'],
+  Maldives: ['Male', 'Addu City'],
+  Mali: ['Bamako', 'Segou', 'Mopti'],
+  Malta: ['Valletta', 'Sliema', 'Mosta'],
+  'Marshall Islands': ['Majuro', 'Ebeye'],
+  Mauritania: ['Nouakchott', 'Nouadhibou'],
+  Mauritius: ['Port Louis', 'Beau Bassin-Rose Hill'],
+  Mexico: ['Mexico City', 'Ecatepec', 'Guadalajara', 'Monterrey', 'Puebla', 'Cancun'],
+  Micronesia: ['Palikir', 'Kolonia'],
+  Moldova: ['Chisinau', 'Tiraspol', 'Balti'],
+  Monaco: ['Monaco-Ville', 'La Rousse'],
+  Mongolia: ['Ulaanbaatar', 'Darkhan', 'Erdenet'],
+  Montenegro: ['Podgorica', 'Cetinje', 'Niksic'],
+  Morocco: ['Rabat', 'Casablanca', 'Fes', 'Marrakech', 'Tangier'],
+  Mozambique: ['Maputo', 'Beira', 'Nampula'],
+  Myanmar: ['Naypyidaw', 'Yangon', 'Mandalay', 'Bagan'],
+  Namibia: ['Windhoek', 'Walvis Bay', 'Swakopmund'],
+  Nauru: ['Yaren', 'Nauru'],
+  Nepal: ['Kathmandu', 'Pokhara', 'Biratnagar', 'Lalitpur'],
+  Netherlands: ['Amsterdam', 'Rotterdam', 'The Hague', 'Utrecht', 'Eindhoven'],
+  'New Zealand': ['Auckland', 'Wellington', 'Christchurch', 'Hamilton'],
+  Nicaragua: ['Managua', 'Leon', 'Granada'],
+  Niger: ['Niamey', 'Zinder', 'Maradi'],
+  Nigeria: ['Lagos', 'Abuja', 'Kano', 'Ibadan', 'Port Harcourt'],
+  'North Korea': ['Pyongyang', 'Kaesong', 'Nampo'],
+  'North Macedonia': ['Skopje', 'Bitola', 'Tetovo'],
+  Norway: ['Oslo', 'Bergen', 'Trondheim', 'Stavanger'],
+  Oman: ['Muscat', 'Salalah', 'Nizwa'],
+  Pakistan: ['Islamabad', 'Karachi', 'Lahore', 'Rawalpindi', 'Multan', 'Hyderabad'],
+  Palau: ['Ngerulmud', 'Koror'],
+  Palestine: ['Ramallah', 'Gaza City', 'Hebron'],
+  Panama: ['Panama City', 'San Miguelito', 'Colon'],
+  'Papua New Guinea': ['Port Moresby', 'Lae', 'Madang'],
+  Paraguay: ['Asuncion', 'Ciudad del Este', 'Concepcion'],
+  Peru: ['Lima', 'Arequipa', 'Cusco', 'Trujillo'],
+  Philippines: ['Manila', 'Quezon City', 'Cebu', 'Davao', 'Caloocan'],
+  Poland: ['Warsaw', 'Krakow', 'Wroclaw', 'Poznan', 'Gdansk'],
+  Portugal: ['Lisbon', 'Porto', 'Braga', 'Almada'],
+  Qatar: ['Doha', 'Al Rayyan', 'Umm Salal'],
+  Romania: ['Bucharest', 'Cluj-Napoca', 'Timisoara', 'Iasi'],
+  Russia: ['Moscow', 'St. Petersburg', 'Novosibirsk', 'Ekaterinburg', 'Sochi', 'Vladivostok'],
+  Rwanda: ['Kigali', 'Butare', 'Gitarama'],
+  'Saint Kitts and Nevis': ['Basseterre', 'Charlestown'],
+  'Saint Lucia': ['Castries', 'Vieux Fort'],
+  'Saint Vincent and the Grenadines': ['Kingstown', 'Bequia'],
+  Samoa: ['Apia', 'Savaii'],
+  'San Marino': ['San Marino City', 'Serravalle'],
+  'Sao Tome and Principe': ['Sao Tome', 'Santo Antonio'],
+  'Saudi Arabia': ['Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Abha'],
+  Senegal: ['Dakar', 'Thies', 'Kaolack'],
+  Serbia: ['Belgrade', 'Novi Sad', 'Nis', 'Zemun'],
+  Seychelles: ['Victoria', 'Beau Vallon'],
+  'Sierra Leone': ['Freetown', 'Bo', 'Kenema'],
+  Singapore: ['Singapore'],
+  Slovakia: ['Bratislava', 'Kosice', 'Presov'],
+  Slovenia: ['Ljubljana', 'Maribor', 'Celje'],
+  'Solomon Islands': ['Honiara', 'Auki'],
+  Somalia: ['Mogadishu', 'Hargeisa', 'Kismayo'],
+  'South Africa': ['Johannesburg', 'Cape Town', 'Durban', 'Pretoria', 'Bloemfontein'],
+  'South Korea': ['Seoul', 'Busan', 'Incheon', 'Daegu', 'Daejeon'],
+  'South Sudan': ['Juba', 'Wau', 'Malakal'],
+  Spain: ['Madrid', 'Barcelona', 'Valencia', 'Seville', 'Bilbao'],
+  'Sri Lanka': ['Colombo', 'Kandy', 'Galle', 'Jaffna'],
+  Sudan: ['Khartoum', 'Omdurman', 'Port Sudan'],
+  Suriname: ['Paramaribo', 'Lelydorp'],
+  Eswatini: ['Mbabane', 'Manzini'],
+  Sweden: ['Stockholm', 'Gothenburg', 'Malmo', 'Uppsala'],
+  Switzerland: ['Zurich', 'Geneva', 'Basel', 'Bern', 'Lucerne'],
+  Syria: ['Damascus', 'Aleppo', 'Homs', 'Latakia'],
+  Taiwan: ['Taipei', 'Kaohsiung', 'Taichung', 'Tainan'],
+  Tajikistan: ['Dushanbe', 'Khujand', 'Kulob'],
+  Tanzania: ['Dar es Salaam', 'Dodoma', 'Mwanza', 'Arusha'],
+  Thailand: ['Bangkok', 'Chiang Mai', 'Pattaya', 'Rayong', 'Udon Thani'],
+  'Timor-Leste': ['Dili', 'Baucau'],
+  Togo: ['Lome', 'Sokode', 'Kpalime'],
+  Tonga: ['Nuku alofa', 'Neiafu'],
+  'Trinidad and Tobago': ['Port of Spain', 'San Fernando', 'Arima'],
+  Tunisia: ['Tunis', 'Sfax', 'Sousse', 'Kairouan'],
+  Turkey: ['Istanbul', 'Ankara', 'Izmir', 'Antalya', 'Bursa'],
+  Turkmenistan: ['Ashgabat', 'Turkmenbashi', 'Dasoguz'],
+  Tuvalu: ['Funafuti', 'Nukufetau'],
+  Uganda: ['Kampala', 'Gulu', 'Lira', 'Mbarara'],
+  Ukraine: ['Kyiv', 'Kharkiv', 'Odesa', 'Dnipro', 'Donetsk'],
+  'United Arab Emirates': ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Ras Al Khaimah', 'Fujairah', 'Umm Al Quwain'],
+  'United Kingdom': ['London', 'Manchester', 'Birmingham', 'Leeds', 'Glasgow', 'Edinburgh', 'Cardiff'],
+  'United States': ['California', 'Texas', 'Florida', 'New York', 'Pennsylvania', 'Illinois', 'Ohio', 'Georgia', 'North Carolina', 'Michigan'],
+  Uruguay: ['Montevideo', 'Salto', 'Paysandu'],
+  Uzbekistan: ['Tashkent', 'Samarkand', 'Bukhara', 'Andijan'],
+  Vanuatu: ['Port Vila', 'Luganville'],
+  'Vatican City': ['Vatican City'],
+  Venezuela: ['Caracas', 'Maracaibo', 'Valencia', 'Barquisimeto'],
+  Vietnam: ['Hanoi', 'Ho Chi Minh City', 'Da Nang', 'Hai Phong', 'Can Tho'],
+  'West Bank': ['Ramallah', 'Bethlehem', 'Hebron'],
+  Yemen: ['Sana a', 'Aden', 'Taiz'],
+  Zambia: ['Lusaka', 'Ndola', 'Kitwe'],
+  Zimbabwe: ['Harare', 'Bulawayo', 'Chitungwiza'],
+}
+
+const COUNTRY_LIST = Object.keys(COUNTRY_STATE_OPTIONS)
 
 export default function ProfilePage() {
   const { data: session } = useSession()
@@ -25,6 +228,12 @@ export default function ProfilePage() {
   
   const [editingEducation, setEditingEducation] = useState<string | null>(null)
   const [editingJob, setEditingJob] = useState<string | null>(null)
+
+  // Profile photo state
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const [photoError, setPhotoError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchProfile()
@@ -70,11 +279,75 @@ export default function ProfilePage() {
           currentJobVisible: data.profile.privacySettings?.currentJobVisible || true,
           contactDetailsVisible: data.profile.privacySettings?.contactDetailsVisible || true,
         })
+
+        if (data.profile.profilePhotoUrl) {
+          setPhotoPreview(data.profile.profilePhotoUrl)
+        } else {
+          setPhotoPreview(null)
+        }
       }
     } catch (error) {
       console.error('Failed to fetch profile:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Please upload a valid image file (JPEG, PNG, WebP).')
+      return
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setPhotoError('Image must be less than 2MB.')
+      return
+    }
+
+    setPhotoError(null)
+    setPhotoFile(file)
+    setPhotoPreview(URL.createObjectURL(file))
+  }
+
+  const handlePhotoUpload = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!photoFile) return
+
+    setPhotoUploading(true)
+    setPhotoError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', photoFile)
+
+      const response = await fetch('/api/profile/photo', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to upload profile photo')
+      }
+
+      setProfile((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              profilePhotoUrl: data.profilePhotoUrl,
+            }
+          : prev,
+      )
+      setPhotoFile(null)
+    } catch (error: any) {
+      console.error('Failed to upload profile photo:', error)
+      setPhotoError(error.message || 'Failed to upload profile photo')
+    } finally {
+      setPhotoUploading(false)
     }
   }
 
@@ -235,6 +508,58 @@ export default function ProfilePage() {
         <p className="text-muted-foreground mt-1">Manage your personal information</p>
       </div>
 
+      {/* Profile Photo */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Profile Photo</CardTitle>
+            <CardDescription>Upload a clear photo for your member profile</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handlePhotoUpload} className="flex flex-col sm:flex-row items-start gap-6">
+            <div className="flex-shrink-0">
+              {photoPreview ? (
+                <Image
+                  src={photoPreview}
+                  alt={profile.fullName}
+                  width={96}
+                  height={96}
+                  className="rounded-full w-24 h-24 object-cover"
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-primary text-white flex items-center justify-center text-2xl font-bold">
+                  {profile.fullName.charAt(0)}
+                </div>
+              )}
+            </div>
+            <div className="space-y-3 w-full">
+              <div className="space-y-1">
+                <Label htmlFor="profilePhoto">Choose Image</Label>
+                <Input
+                  id="profilePhoto"
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                />
+                <p className="text-xs text-muted-foreground">
+                  JPEG, PNG or WebP. Max size 2MB.
+                </p>
+              </div>
+              {photoError && (
+                <div className="text-xs text-red-600">
+                  {photoError}
+                </div>
+              )}
+              <Button type="submit" size="sm" disabled={photoUploading || !photoFile}>
+                <Upload className="w-4 h-4 mr-2" />
+                {photoUploading ? 'Uploading...' : 'Save Photo'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
       {/* Basic Information */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -292,17 +617,39 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <Label>State</Label>
-                  <Input
+                  <select
                     value={basicForm.state}
                     onChange={(e) => setBasicForm({ ...basicForm, state: e.target.value })}
-                  />
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Select state</option>
+                    {(COUNTRY_STATE_OPTIONS[basicForm.country] || []).map((state: string) => (
+                      <option key={state} value={state}>
+                        {state}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <Label>Country</Label>
-                  <Input
+                  <select
                     value={basicForm.country}
-                    onChange={(e) => setBasicForm({ ...basicForm, country: e.target.value })}
-                  />
+                    onChange={(e) =>
+                      setBasicForm({
+                        ...basicForm,
+                        country: e.target.value,
+                        state: '',
+                      })
+                    }
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Select country</option>
+                    {COUNTRY_LIST.map((country) => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="flex gap-4">

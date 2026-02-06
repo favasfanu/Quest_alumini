@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Mail, Phone, Linkedin, Instagram, MapPin, Briefcase } from 'lucide-react'
+import { Mail, Phone, Linkedin, Instagram, MapPin, Briefcase, GraduationCap } from 'lucide-react'
 import Image from 'next/image'
 
 export default async function PublicMemberPage({ params }: { params: { id: string } }) {
@@ -13,10 +13,11 @@ export default async function PublicMemberPage({ params }: { params: { id: strin
         include: {
           privacySettings: true,
           contactDetails: true,
+          educationRecords: {
+            orderBy: { startYear: 'desc' },
+          },
           jobExperiences: {
-            where: { currentlyWorking: true },
             orderBy: { startDate: 'desc' },
-            take: 1,
           },
         },
       },
@@ -27,8 +28,14 @@ export default async function PublicMemberPage({ params }: { params: { id: strin
     notFound()
   }
 
-  const currentJob = user.profile.jobExperiences[0]
-  const canSeeContact = user.profile.privacySettings?.contactDetailsVisible
+  const privacy = user.profile.privacySettings
+  const canSeeContact = !!privacy?.contactDetailsVisible
+  const canSeeEducation = !!privacy?.educationVisible
+  const canSeeJobHistory = !!privacy?.jobHistoryVisible
+  const canSeeCurrentJob = privacy?.currentJobVisible !== false
+
+  const currentJob = user.profile.jobExperiences.find((j) => j.currentlyWorking)
+  const jobHistory = user.profile.jobExperiences
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 py-12">
@@ -58,19 +65,51 @@ export default async function PublicMemberPage({ params }: { params: { id: strin
           </CardHeader>
 
           <CardContent className="space-y-6">
-            {currentJob && (
+            {/* Work */}
+            {(canSeeCurrentJob || canSeeJobHistory) && (
               <div className="border-t pt-6">
                 <h3 className="font-semibold mb-3 flex items-center gap-2">
                   <Briefcase className="w-5 h-5" />
-                  Current Position
+                  Work
                 </h3>
-                <div className="pl-7">
-                  <div className="font-semibold text-lg">{currentJob.jobTitle}</div>
-                  <div className="text-muted-foreground">{currentJob.companyName}</div>
-                  {currentJob.jobLocation && (
-                    <div className="text-sm text-muted-foreground mt-1">{currentJob.jobLocation}</div>
-                  )}
-                </div>
+
+                {canSeeCurrentJob && currentJob && (
+                  <div className="pl-7">
+                    <div className="text-sm text-muted-foreground">Current Position</div>
+                    <div className="font-semibold text-lg">{currentJob.jobTitle}</div>
+                    <div className="text-muted-foreground">{currentJob.companyName}</div>
+                    {currentJob.jobLocation && (
+                      <div className="text-sm text-muted-foreground mt-1">{currentJob.jobLocation}</div>
+                    )}
+                  </div>
+                )}
+
+                {canSeeJobHistory && jobHistory.length > 0 && (
+                  <div className="pl-7 mt-4 space-y-2">
+                    <div className="text-sm text-muted-foreground">Work History</div>
+                    {jobHistory.map((job) => (
+                      <div key={job.id} className="border rounded-lg p-3 bg-white/60 text-sm">
+                        <div className="font-semibold">{job.jobTitle}</div>
+                        <div className="text-muted-foreground">{job.companyName}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {new Date(job.startDate).toLocaleDateString()} -{' '}
+                          {job.currentlyWorking || !job.endDate
+                            ? 'Present'
+                            : new Date(job.endDate).toLocaleDateString()}
+                        </div>
+                        {job.jobLocation && (
+                          <div className="text-xs text-muted-foreground">{job.jobLocation}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {!canSeeCurrentJob && !canSeeJobHistory && (
+                  <div className="pl-7 text-sm text-muted-foreground">
+                    Work details are hidden by this member.
+                  </div>
+                )}
               </div>
             )}
 
@@ -84,7 +123,7 @@ export default async function PublicMemberPage({ params }: { params: { id: strin
               <div className="border-t pt-6">
                 <h3 className="font-semibold mb-3 flex items-center gap-2">
                   <MapPin className="w-5 h-5" />
-                  Location
+                  Address
                 </h3>
                 <div className="pl-7">
                   {[user.profile.city, user.profile.state, user.profile.country]
@@ -93,6 +132,34 @@ export default async function PublicMemberPage({ params }: { params: { id: strin
                 </div>
               </div>
             )}
+
+            {/* Education */}
+            <div className="border-t pt-6">
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <GraduationCap className="w-5 h-5" />
+                Education
+              </h3>
+              {canSeeEducation && user.profile.educationRecords.length > 0 ? (
+                <div className="pl-7 space-y-2">
+                  {user.profile.educationRecords.map((edu) => (
+                    <div key={edu.id} className="border rounded-lg p-3 bg-white/60 text-sm">
+                      <div className="font-semibold">
+                        {edu.degree}
+                        {edu.fieldOfStudy ? ` - ${edu.fieldOfStudy}` : ''}
+                      </div>
+                      <div className="text-muted-foreground">{edu.institution}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {edu.startYear} - {edu.currentlyStudying ? 'Present' : edu.endYear}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="pl-7 text-sm text-muted-foreground">
+                  {canSeeEducation ? 'No education records shared.' : 'Education is hidden by this member.'}
+                </div>
+              )}
+            </div>
 
             {canSeeContact && user.profile.contactDetails && (
               <div className="border-t pt-6">

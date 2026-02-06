@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Download, RefreshCw } from 'lucide-react'
@@ -25,12 +26,15 @@ interface MembershipCard {
 }
 
 export default function MembershipCardPage() {
+  const { data: session } = useSession()
   const [card, setCard] = useState<MembershipCard | null>(null)
+  const [globalTemplate, setGlobalTemplate] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const cardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetchCard()
+    fetchGlobalTemplate()
   }, [])
 
   const fetchCard = async () => {
@@ -45,6 +49,19 @@ export default function MembershipCardPage() {
       console.error('Failed to fetch card:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchGlobalTemplate = async () => {
+    try {
+      const response = await fetch('/api/card-template')
+      const data = await response.json()
+      
+      if (response.ok && data.template?.templateUrl) {
+        setGlobalTemplate(data.template.templateUrl)
+      }
+    } catch (error) {
+      console.error('Failed to fetch template:', error)
     }
   }
 
@@ -109,8 +126,15 @@ export default function MembershipCardPage() {
 
       <div 
         ref={cardRef}
-        className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-8 text-white shadow-2xl"
-        style={{ aspectRatio: '1.586/1' }}
+        className={`rounded-xl p-8 text-white shadow-2xl ${
+          globalTemplate 
+            ? 'bg-cover bg-center' 
+            : 'bg-gradient-to-br from-blue-600 to-indigo-700'
+        }`}
+        style={{
+          aspectRatio: '1.586/1',
+          backgroundImage: globalTemplate ? `url(${globalTemplate})` : undefined,
+        }}
       >
         <div className="flex flex-col h-full justify-between">
           <div className="flex justify-between items-start">
@@ -118,9 +142,21 @@ export default function MembershipCardPage() {
               <h2 className="text-2xl font-bold">Quest Foundation</h2>
               <p className="text-blue-100 text-sm">Bangalore</p>
             </div>
-            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-blue-600 font-bold text-xl">
-              QF
-            </div>
+            {card.user.profile.profilePhotoUrl ? (
+              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white shadow-lg">
+                <Image 
+                  src={card.user.profile.profilePhotoUrl} 
+                  alt={card.user.profile.fullName}
+                  width={64}
+                  height={64}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-blue-600 font-bold text-xl">
+                QF
+              </div>
+            )}
           </div>
 
           <div className="flex items-end justify-between">
@@ -177,6 +213,12 @@ export default function MembershipCardPage() {
             <span className="text-muted-foreground">Issued:</span>
             <span className="font-medium">{new Date(card.issuedAt).toLocaleDateString()}</span>
           </div>
+          {globalTemplate && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Template:</span>
+              <span className="font-medium">Custom (Admin)</span>
+            </div>
+          )}
           <div className="pt-3 text-muted-foreground">
             <p>Scan the QR code to view public profile information.</p>
           </div>

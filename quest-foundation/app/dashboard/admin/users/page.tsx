@@ -1,6 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -20,9 +24,20 @@ interface User {
 }
 
 export default function AdminUserManagement() {
+  const { data: session } = useSession()
+  const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('ALL')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string>('')
+  const [createSuccess, setCreateSuccess] = useState<string>('')
+  const [createAdminForm, setCreateAdminForm] = useState({
+    fullName: '',
+    email: '',
+    password: '',
+    userType: 'STAFF',
+  })
 
   useEffect(() => {
     fetchUsers()
@@ -31,7 +46,9 @@ export default function AdminUserManagement() {
   const fetchUsers = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/admin/users')
+      const response = await fetch(`/api/admin/users?t=${Date.now()}`, {
+        method: 'GET',
+      })
       const data = await response.json()
       
       if (data.users) {
@@ -45,18 +62,69 @@ export default function AdminUserManagement() {
   }
 
   const updateUser = async (userId: string, updates: any) => {
+    console.log('updateUser called', { userId, updates })
+    
+    // Optimistic update: update local state immediately
+    setUsers(prevUsers =>
+      prevUsers.map(u =>
+        u.id === userId ? { ...u, ...updates } : u
+      )
+    )
+
     try {
-      const response = await fetch('/api/admin/users', {
+      const response = await fetch(`/api/admin/users?t=${Date.now()}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, updates }),
       })
 
+      const data = await response.json().catch(() => null)
+      console.log('PATCH /api/admin/users response', response.status, data)
+
       if (response.ok) {
-        fetchUsers()
+        // Refresh user list with fresh data from server
+        await fetchUsers()
+        
+        // If we updated the current user, refresh their session
+        if (userId === session?.user?.id) {
+          console.log('Refreshing session for current user')
+          router.refresh()
+        }
+      } else {
+        console.error('Update failed', data)
+        // Revert optimistic update on error
+        await fetchUsers()
+        alert('Update failed: ' + (data?.error || response.status))
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update user:', error)
+      // Revert optimistic update on error
+      await fetchUsers()
+      alert('Failed to update user: ' + (error?.message || error))
+    }
+  }
+
+  const createAdmin = async () => {
+    setCreating(true)
+    setCreateError('')
+    setCreateSuccess('')
+    try {
+      const response = await fetch('/api/admin/admins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(createAdminForm),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create admin')
+      }
+      setCreateSuccess('Admin created successfully.')
+      setCreateAdminForm({ fullName: '', email: '', password: '', userType: 'STAFF' })
+      fetchUsers()
+    } catch (error: any) {
+      setCreateError(error.message || 'Failed to create admin')
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -85,6 +153,74 @@ export default function AdminUserManagement() {
         <h1 className="text-3xl font-bold">User Management</h1>
         <p className="text-muted-foreground mt-1">Approve, reject, and manage user accounts</p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Create Admin</CardTitle>
+          <CardDescription>
+            Create a new admin account (approved immediately). Password must be at least 10 characters.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="adminFullName">Full Name</Label>
+              <Input
+                id="adminFullName"
+                value={createAdminForm.fullName}
+                onChange={(e) => setCreateAdminForm({ ...createAdminForm, fullName: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="adminEmail">Email</Label>
+              <Input
+                id="adminEmail"
+                type="email"
+                value={createAdminForm.email}
+                onChange={(e) => setCreateAdminForm({ ...createAdminForm, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="adminPassword">Password</Label>
+              <Input
+                id="adminPassword"
+                type="password"
+                value={createAdminForm.password}
+                onChange={(e) => setCreateAdminForm({ ...createAdminForm, password: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="adminUserType">User Type</Label>
+              <select
+                id="adminUserType"
+                value={createAdminForm.userType}
+                onChange={(e) => setCreateAdminForm({ ...createAdminForm, userType: e.target.value })}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="STAFF">STAFF</option>
+                <option value="ALUMNI">ALUMNI</option>
+                <option value="NON_ALUMNI">NON_ALUMNI</option>
+              </select>
+            </div>
+          </div>
+          {createError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+              {createError}
+            </div>
+          )}
+          {createSuccess && (
+            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md text-sm">
+              {createSuccess}
+            </div>
+          )}
+          <Button onClick={createAdmin} disabled={creating}>
+            {creating ? 'Creating...' : 'Create Admin'}
+          </Button>
+          <div className="text-xs text-muted-foreground">
+            Tip: Use the role dropdown on an existing user to assign or revoke `ADMIN` / `LOAN_MANAGER`.
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="flex flex-wrap gap-2">
         {['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'DISABLED'].map((status) => (
@@ -123,7 +259,21 @@ export default function AdminUserManagement() {
               <CardContent>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <div className="flex-1 space-y-1 text-sm">
-                    <p><strong>Role:</strong> {user.role.replace('_', ' ')}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">Role:</span>
+                      <select
+                        value={user.role}
+                        onChange={(e) => updateUser(user.id, { role: e.target.value })}
+                        disabled={session?.user?.id === user.id}
+                        className="flex h-9 rounded-md border border-input bg-background px-2 py-1 text-xs"
+                      >
+                        <option value="ADMIN">ADMIN</option>
+                        <option value="ALUMNI_MEMBER">ALUMNI_MEMBER</option>
+                        <option value="QUEST_STAFF">QUEST_STAFF</option>
+                        <option value="NON_ALUMNI_MEMBER">NON_ALUMNI_MEMBER</option>
+                        <option value="LOAN_MANAGER">LOAN_MANAGER</option>
+                      </select>
+                    </div>
                     <p><strong>Loan Eligible:</strong> {user.isLoanEligible ? 'Yes' : 'No'}</p>
                     <p><strong>Registered:</strong> {new Date(user.createdAt).toLocaleDateString()}</p>
                   </div>

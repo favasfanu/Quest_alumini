@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Background transparent -->
+  <defs>
+    <linearGradient id="g" x1="0" x2="1">
+      <stop offset="0%" stop-color="#1e3a8a" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" fill="transparent" />
+  <!-- Outer ring (Q) -->
+  <path d="M100 20
+           A80 80 0 1 1 99.9 20
+           Z"
+        fill="none" stroke="url(#g)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" />
+  <!-- Ribbon / swoosh -->
+  <path d="M60 110 C90 70 130 60 150 90 C140 85 120 80 100 92 C80 104 68 122 60 110 Z"
+        fill="url(#g)" opacity="0.95" />
+  <!-- Inner stylized tick to mimic logo tail -->
+  <path d="M125 50 C110 80 90 92 70 108"
+        stroke="#0b63d6" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

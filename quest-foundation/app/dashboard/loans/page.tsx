@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { calculateLoan } from '@/lib/loan-calculator'
 import { formatCurrency } from '@/lib/utils'
 import { useSession } from 'next-auth/react'
-import { CheckCircle } from 'lucide-react'
+import { CheckCircle, ListChecks } from 'lucide-react'
 
 interface LoanCategory {
   id: string
@@ -34,6 +34,16 @@ interface LoanApplication {
   }
 }
 
+interface LoanRepayment {
+  id: string
+  repaymentMonth: number
+  dueAmount: string
+  paidAmount: string
+  dueDate: string
+  paidDate: string | null
+  paymentStatus: string
+}
+
 export default function LoansPage() {
   const { data: session } = useSession()
   const [categories, setCategories] = useState<LoanCategory[]>([])
@@ -52,11 +62,17 @@ export default function LoansPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [expandedSchedule, setExpandedSchedule] = useState<Record<string, boolean>>({})
+  const [repaymentsByApp, setRepaymentsByApp] = useState<Record<string, LoanRepayment[]>>({})
+  const [repaymentsLoading, setRepaymentsLoading] = useState<Record<string, boolean>>({})
+  const [isEligible, setIsEligible] = useState(true)
+  const [eligibilityLoading, setEligibilityLoading] = useState(true)
 
   useEffect(() => {
     fetchCategories()
     fetchApplications()
     fetchEligibleUsers()
+    checkEligibility()
   }, [])
 
   useEffect(() => {
@@ -102,6 +118,19 @@ export default function LoansPage() {
       setEligibleUsers(data.users || [])
     } catch (error) {
       console.error('Failed to fetch eligible users:', error)
+    }
+  }
+
+  const checkEligibility = async () => {
+    setEligibilityLoading(true)
+    try {
+      const response = await fetch('/api/loans/eligibility')
+      const data = await response.json()
+      setIsEligible(Boolean(data?.eligible))
+    } catch (error) {
+      console.error('Failed to check eligibility:', error)
+    } finally {
+      setEligibilityLoading(false)
     }
   }
 
@@ -153,7 +182,22 @@ export default function LoansPage() {
     }
   }
 
-  if (!session?.user.isLoanEligible) {
+  const toggleSchedule = async (applicationId: string) => {
+    setExpandedSchedule((prev) => ({ ...prev, [applicationId]: !prev[applicationId] }))
+    if (repaymentsByApp[applicationId]) return
+    setRepaymentsLoading((prev) => ({ ...prev, [applicationId]: true }))
+    try {
+      const response = await fetch(`/api/loans/repayments?applicationId=${applicationId}`)
+      const data = await response.json()
+      setRepaymentsByApp((prev) => ({ ...prev, [applicationId]: data.repayments || [] }))
+    } catch (error) {
+      console.error('Failed to fetch repayments:', error)
+    } finally {
+      setRepaymentsLoading((prev) => ({ ...prev, [applicationId]: false }))
+    }
+  }
+
+  if (!isEligible) {
     return (
       <Card>
         <CardHeader>
@@ -364,6 +408,59 @@ export default function LoansPage() {
                   <div className="text-xs text-muted-foreground mt-2">
                     Submitted: {new Date(app.submittedAt).toLocaleDateString()}
                   </div>
+
+                  {(app.status === 'FUNDS_TRANSFERRED' || app.status === 'ACTIVE_LOAN' || app.status === 'COMPLETED') && (
+                    <div className="mt-3">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => toggleSchedule(app.id)}
+                      >
+                        <ListChecks className="w-4 h-4 mr-1" />
+                        {expandedSchedule[app.id] ? 'Hide Repayment Schedule' : 'View Repayment Schedule'}
+                      </Button>
+
+                      {expandedSchedule[app.id] && (
+                        <div className="mt-3 border rounded-lg p-3 bg-muted/30">
+                          {repaymentsLoading[app.id] && (
+                            <div className="text-sm text-muted-foreground">Loading schedule...</div>
+                          )}
+                          {!repaymentsLoading[app.id] && (repaymentsByApp[app.id]?.length || 0) === 0 && (
+                            <div className="text-sm text-muted-foreground">
+                              Repayment schedule will appear after funds transfer.
+                            </div>
+                          )}
+                          {!repaymentsLoading[app.id] && (repaymentsByApp[app.id]?.length || 0) > 0 && (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="text-left text-muted-foreground">
+                                    <th className="py-2 pr-3">Month</th>
+                                    <th className="py-2 pr-3">Due Date</th>
+                                    <th className="py-2 pr-3">Amount</th>
+                                    <th className="py-2 pr-3">Status</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {repaymentsByApp[app.id].map((r) => (
+                                    <tr key={r.id} className="border-t">
+                                      <td className="py-2 pr-3">{r.repaymentMonth}</td>
+                                      <td className="py-2 pr-3">{new Date(r.dueDate).toLocaleDateString()}</td>
+                                      <td className="py-2 pr-3">{formatCurrency(r.dueAmount)}</td>
+                                      <td className="py-2 pr-3">
+                                        <Badge variant="outline">{r.paymentStatus}</Badge>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

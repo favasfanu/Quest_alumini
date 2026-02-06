@@ -309,7 +309,7 @@ export default function AdminLoanCategories() {
       {categories.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            No loan categories created yet. Click "Add Category" to create one.
+            No loan categories created yet. Click &quot;Add Category&quot; to create one.
           </CardContent>
         </Card>
       )}

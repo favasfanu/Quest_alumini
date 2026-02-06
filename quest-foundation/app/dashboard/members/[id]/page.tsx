@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth-config'
 import { prisma } from '@/lib/prisma'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -119,9 +119,11 @@ export default async function MemberDetailPage({ params }: MemberDetailPageProps
             </div>
           </div>
           <div className="space-y-2 text-sm text-muted-foreground">
-            <div>
-              <span className="font-medium">Account Email:</span> {user.email}
-            </div>
+            {canSeeContact && (
+              <div>
+                <span className="font-medium">Account Email:</span> {user.email}
+              </div>
+            )}
             <div>
               <span className="font-medium">Status:</span> {user.status}
             </div>

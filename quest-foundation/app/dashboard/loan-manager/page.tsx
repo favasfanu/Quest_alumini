@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/utils'
-import { CheckCircle, XCircle, Send, Clock } from 'lucide-react'
+import { CheckCircle, XCircle, Send, Clock, UserCheck, ListChecks } from 'lucide-react'
 
 interface LoanApplication {
   id: string
@@ -19,6 +20,12 @@ interface LoanApplication {
   purpose: string
   remarks: string
   rejectionReason: string
+  assignedTo: {
+    id: string
+    profile: {
+      fullName: string
+    }
+  } | null
   loanCategory: {
     name: string
   }
@@ -39,15 +46,44 @@ interface LoanApplication {
   }
 }
 
+interface LoanRepayment {
+  id: string
+  repaymentMonth: number
+  dueAmount: string
+  paidAmount: string
+  dueDate: string
+  paidDate: string | null
+  paymentStatus: string
+}
+
 export default function LoanManagerPage() {
+  const { data: session } = useSession()
   const [applications, setApplications] = useState<LoanApplication[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('ALL')
   const [selectedApp, setSelectedApp] = useState<LoanApplication | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
+  const [expandedRepayments, setExpandedRepayments] = useState<Record<string, boolean>>({})
+  const [repaymentsByApplication, setRepaymentsByApplication] = useState<Record<string, LoanRepayment[]>>({})
+  const [repaymentsLoading, setRepaymentsLoading] = useState<Record<string, boolean>>({})
+  const [liveRole, setLiveRole] = useState<string | null>(session?.user?.role || null)
 
   useEffect(() => {
     fetchApplications()
+    let mounted = true
+    ;(async () => {
+      try {
+        const res = await fetch('/api/auth/role')
+        if (!mounted) return
+        if (res.ok) {
+          const data = await res.json()
+          setLiveRole(data?.role || null)
+        }
+      } catch (e) {
+        // ignore
+      }
+    })()
+    return () => { mounted = false }
   }, [])
 
   const fetchApplications = async () => {
@@ -84,6 +120,35 @@ export default function LoanManagerPage() {
     } finally {
       setActionLoading(false)
     }
+  }
+
+  const toggleRepayments = async (applicationId: string) => {
+    setExpandedRepayments((prev) => ({ ...prev, [applicationId]: !prev[applicationId] }))
+    if (repaymentsByApplication[applicationId]) return
+    setRepaymentsLoading((prev) => ({ ...prev, [applicationId]: true }))
+    try {
+      const response = await fetch(`/api/loans/repayments?applicationId=${applicationId}`)
+      const data = await response.json()
+      setRepaymentsByApplication((prev) => ({ ...prev, [applicationId]: data.repayments || [] }))
+    } catch (error) {
+      console.error('Failed to fetch repayments:', error)
+    } finally {
+      setRepaymentsLoading((prev) => ({ ...prev, [applicationId]: false }))
+    }
+  }
+
+  const markEmiPaid = async (applicationId: string, repayment: LoanRepayment) => {
+    const amount = prompt('Enter amount paid for this EMI:', String(repayment.dueAmount))
+    if (!amount) return
+    await handleAction(applicationId, 'mark_emi_paid', { repaymentId: repayment.id, paidAmount: amount })
+    // refresh schedule
+    setRepaymentsByApplication((prev) => {
+      const clone = { ...prev }
+      delete clone[applicationId]
+      return clone
+    })
+    setExpandedRepayments((prev) => ({ ...prev, [applicationId]: true }))
+    await toggleRepayments(applicationId)
   }
 
   const getStatusBadge = (status: string) => {
@@ -140,6 +205,12 @@ export default function LoanManagerPage() {
                   <div className="text-sm text-muted-foreground mt-1">
                     {app.loanCategory.name} • {formatCurrency(app.loanAmount)}
                   </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Assigned:{' '}
+                    <span className="font-medium">
+                      {app.assignedTo?.profile?.fullName || 'Unassigned'}
+                    </span>
+                  </div>
                 </div>
                 {getStatusBadge(app.status)}
               </div>
@@ -186,7 +257,19 @@ export default function LoanManagerPage() {
               </div>
 
               <div className="flex flex-wrap gap-2 pt-2">
-                {app.status === 'SUBMITTED' && (
+                {!app.assignedTo && (liveRole === 'LOAN_MANAGER' || liveRole === 'ADMIN') && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleAction(app.id, 'claim')}
+                    disabled={actionLoading}
+                  >
+                    <UserCheck className="w-4 h-4 mr-1" />
+                    Claim
+                  </Button>
+                )}
+
+                {(app.status === 'SUBMITTED' || app.status === 'UNDER_REVIEW') && (liveRole === 'LOAN_MANAGER' || liveRole === 'ADMIN') && (
                   <>
                     <Button
                       size="sm"
@@ -246,7 +329,72 @@ export default function LoanManagerPage() {
                     Mark Completed
                   </Button>
                 )}
+
+                {(app.status === 'FUNDS_TRANSFERRED' || app.status === 'ACTIVE_LOAN' || app.status === 'COMPLETED') && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => toggleRepayments(app.id)}
+                    disabled={actionLoading}
+                  >
+                    <ListChecks className="w-4 h-4 mr-1" />
+                    {expandedRepayments[app.id] ? 'Hide Schedule' : 'View Schedule'}
+                  </Button>
+                )}
               </div>
+
+              {expandedRepayments[app.id] && (
+                <div className="border rounded-lg p-4 bg-muted/30">
+                  <div className="font-semibold mb-2">Repayment Schedule</div>
+                  {repaymentsLoading[app.id] && (
+                    <div className="text-sm text-muted-foreground">Loading schedule...</div>
+                  )}
+                  {!repaymentsLoading[app.id] && (repaymentsByApplication[app.id]?.length || 0) === 0 && (
+                    <div className="text-sm text-muted-foreground">
+                      No repayment schedule found yet. (It will be generated after funds transfer.)
+                    </div>
+                  )}
+                  {!repaymentsLoading[app.id] && (repaymentsByApplication[app.id]?.length || 0) > 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-muted-foreground">
+                            <th className="py-2 pr-3">Month</th>
+                            <th className="py-2 pr-3">Due Date</th>
+                            <th className="py-2 pr-3">Due</th>
+                            <th className="py-2 pr-3">Paid</th>
+                            <th className="py-2 pr-3">Status</th>
+                            <th className="py-2 pr-3">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {repaymentsByApplication[app.id].map((r) => (
+                            <tr key={r.id} className="border-t">
+                              <td className="py-2 pr-3">{r.repaymentMonth}</td>
+                              <td className="py-2 pr-3">{new Date(r.dueDate).toLocaleDateString()}</td>
+                              <td className="py-2 pr-3">{formatCurrency(r.dueAmount)}</td>
+                              <td className="py-2 pr-3">{formatCurrency(r.paidAmount)}</td>
+                              <td className="py-2 pr-3">
+                                <Badge variant="outline">{r.paymentStatus}</Badge>
+                              </td>
+                              <td className="py-2 pr-3">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={actionLoading || app.status !== 'ACTIVE_LOAN' || r.paymentStatus === 'PAID'}
+                                  onClick={() => markEmiPaid(app.id, r)}
+                                >
+                                  Mark Paid
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {app.rejectionReason && (
                 <div className="bg-red-50 border border-red-200 text-red-800 px-3 py-2 rounded-md text-sm">

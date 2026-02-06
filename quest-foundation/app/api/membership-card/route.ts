@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth-config'
 import { prisma } from '@/lib/prisma'
 import { generateCardNumber } from '@/lib/utils'
 import QRCode from 'qrcode'
@@ -74,7 +74,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { action } = await request.json()
+    const body = await request.json()
+    const { action } = body
 
     if (action === 'regenerate') {
       const profile = await prisma.profile.findUnique({
@@ -118,7 +119,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
-    console.error('Error regenerating membership card:', error)
-    return NextResponse.json({ error: 'Failed to regenerate membership card' }, { status: 500 })
+    console.error('Error processing membership card request:', error)
+    return NextResponse.json({ error: 'Failed to process request' }, { status: 500 })
   }
 }

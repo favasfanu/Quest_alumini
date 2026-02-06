@@ -13,7 +13,7 @@ import Image from 'next/image'
 
 interface Member {
   id: string
-  email: string
+  email?: string
   userType: string
   profile: {
     fullName: string
@@ -51,6 +51,7 @@ interface MemberFiltersMetadata {
   userTypes: string[]
   countries: string[]
   statesByCountry: Record<string, string[]>
+  citiesByCountryState: Record<string, string[]>
 }
 
 export default function MembersPage() {
@@ -65,6 +66,7 @@ export default function MembersPage() {
     company: '',
     country: '',
     state: '',
+    city: '',
     userType: '',
   })
   const [filterMetadata, setFilterMetadata] = useState<MemberFiltersMetadata | null>(null)
@@ -86,6 +88,7 @@ export default function MembersPage() {
       if (filters.company) params.append('company', filters.company)
       if (filters.country) params.append('country', filters.country)
       if (filters.state) params.append('state', filters.state)
+      if (filters.city) params.append('city', filters.city)
       if (filters.userType) params.append('userType', filters.userType)
 
       const response = await fetch(`/api/members?${params.toString()}`)
@@ -105,6 +108,7 @@ export default function MembersPage() {
       [field]: value,
       // Reset dependent filters when parent changes
       ...(field === 'country' ? { state: '' } : {}),
+      ...(field === 'state' ? { city: '' } : {}),
     }))
   }
 
@@ -251,6 +255,32 @@ export default function MembersPage() {
                   ))}
               </select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="city">City</Label>
+              {filters.country && filters.state ? (
+                <select
+                  id="city"
+                  value={filters.city}
+                  onChange={(e) => handleSearchChange('city', e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">All</option>
+                  {filterMetadata?.citiesByCountryState?.[`${filters.country}||${filters.state}`]?.map((city) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  id="city"
+                  placeholder="Type city..."
+                  value={filters.city}
+                  onChange={(e) => handleSearchChange('city', e.target.value)}
+                />
+              )}
+            </div>
           </div>
 
           <div className="mt-4 flex items-center justify-between">
@@ -272,6 +302,7 @@ export default function MembersPage() {
                   company: '',
                   country: '',
                   state: '',
+                  city: '',
                   userType: '',
                 })
               }

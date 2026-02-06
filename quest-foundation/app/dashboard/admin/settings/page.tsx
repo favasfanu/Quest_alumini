@@ -1,12 +1,19 @@
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth-config'
+import { prisma } from '@/lib/prisma'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import Link from 'next/link'
 
 export default async function AdminSettingsPage() {
   const session = await getServerSession(authOptions)
 
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session) {
+    redirect('/dashboard')
+  }
+
+  const dbUser = await prisma.user.findUnique({ where: { id: session.user.id }, select: { role: true } })
+  if (!dbUser || dbUser.role !== 'ADMIN') {
     redirect('/dashboard')
   }
 
@@ -16,6 +23,25 @@ export default async function AdminSettingsPage() {
         <h1 className="text-3xl font-bold">System Settings</h1>
         <p className="text-muted-foreground mt-1">Configure system-wide settings</p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Membership Card Template</CardTitle>
+          <CardDescription>Manage the global card design for all members</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Upload a custom card template that will appear on all member membership cards. When you update the template, all members will immediately see the new design.
+            </p>
+            <Link href="/dashboard/admin/card-template" className="inline-block">
+              <button className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium">
+                Manage Card Template
+              </button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth-config'
 import { prisma } from '@/lib/prisma'
 
 export async function GET(request: Request) {
@@ -17,6 +17,7 @@ export async function GET(request: Request) {
   const company = searchParams.get('company') || ''
   const country = searchParams.get('country') || ''
   const state = searchParams.get('state') || ''
+  const city = searchParams.get('city') || ''
   const userTypeFilter = searchParams.get('userType') || ''
 
   const isNonAlumni = session.user.role === 'NON_ALUMNI_MEMBER'
@@ -71,7 +72,6 @@ export async function GET(request: Request) {
 
         return {
           id: user.id,
-          email: user.email,
           userType: user.userType,
           profile: {
             fullName: profile.fullName,
@@ -116,6 +116,7 @@ export async function GET(request: Request) {
     const userTypeSet = new Set<string>()
     const countrySet = new Set<string>()
     const statesByCountry: Record<string, Set<string>> = {}
+    const citiesByCountryState: Record<string, Set<string>> = {}
 
     for (const member of members) {
       userTypeSet.add(member.userType)
@@ -137,6 +138,14 @@ export async function GET(request: Request) {
             statesByCountry[p.country] = new Set<string>()
           }
           statesByCountry[p.country]!.add(p.state)
+
+          if (p.city) {
+            const key = `${p.country}||${p.state}`
+            if (!citiesByCountryState[key]) {
+              citiesByCountryState[key] = new Set<string>()
+            }
+            citiesByCountryState[key]!.add(p.city)
+          }
         }
       }
     }
@@ -151,6 +160,12 @@ export async function GET(request: Request) {
         Object.entries(statesByCountry).map(([countryKey, statesSet]) => [
           countryKey,
           Array.from(statesSet).sort(),
+        ]),
+      ),
+      citiesByCountryState: Object.fromEntries(
+        Object.entries(citiesByCountryState).map(([key, citiesSet]) => [
+          key,
+          Array.from(citiesSet).sort(),
         ]),
       ),
     }
@@ -184,6 +199,9 @@ export async function GET(request: Request) {
 
       const countryMatch = !country || p.country === country
       const stateMatch = !state || p.state === state
+      const cityMatch =
+        !city ||
+        (p.city && p.city.toLowerCase().includes(city.toLowerCase()))
 
       const userTypeMatch =
         !userTypeFilter || member.userType === userTypeFilter
@@ -195,6 +213,7 @@ export async function GET(request: Request) {
         companyMatch &&
         countryMatch &&
         stateMatch &&
+        cityMatch &&
         userTypeMatch
       )
     })
