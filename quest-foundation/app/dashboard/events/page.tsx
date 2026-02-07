@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -36,11 +36,7 @@ export default function AlumniEventsPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
 
-  useEffect(() => {
-    fetchEvents()
-  }, [filterStatus])
-
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     setLoading(true)
     try {
       const url = filterStatus === 'all' ? '/api/events' : `/api/events?status=${filterStatus}`
@@ -56,7 +52,11 @@ export default function AlumniEventsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [filterStatus])
+
+  useEffect(() => {
+    fetchEvents()
+  }, [fetchEvents])
 
   const getStatusBadge = (status: string) => {
     const styles = {
@@ -95,7 +95,7 @@ export default function AlumniEventsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">My Events</h1>
-        <p className="text-muted-foreground mt-1">View events you're participating in</p>
+        <p className="text-muted-foreground mt-1">View events you&apos;re participating in</p>
       </div>
 
       {/* Filter Buttons */}
@@ -118,7 +118,7 @@ export default function AlumniEventsPage() {
           <CardContent className="py-12 text-center">
             <div className="text-muted-foreground">
               {filterStatus === 'all' 
-                ? "You're not participating in any events yet." 
+                ? "You&apos;re not participating in any events yet." 
                 : `No ${filterStatus} events found.`}
             </div>
           </CardContent>

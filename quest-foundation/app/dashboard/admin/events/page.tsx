@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -56,12 +56,7 @@ export default function AdminEventsPage() {
   const [mediaLinks, setMediaLinks] = useState<Array<{ url: string; type: string; visibility: string }>>([])
   const [participantIds, setParticipantIds] = useState<string[]>([])
 
-  useEffect(() => {
-    fetchEvents()
-    fetchUsers()
-  }, [filterStatus])
-
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       const url = filterStatus === 'all' ? '/api/events' : `/api/events?status=${filterStatus}`
       const response = await fetch(url)
@@ -74,9 +69,9 @@ export default function AdminEventsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [filterStatus])
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const response = await fetch('/api/members')
       const data = await response.json()
@@ -86,7 +81,12 @@ export default function AdminEventsPage() {
     } catch (error) {
       console.error('Failed to fetch users:', error)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchEvents()
+    fetchUsers()
+  }, [fetchEvents, fetchUsers])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
