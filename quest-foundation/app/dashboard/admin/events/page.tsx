@@ -81,7 +81,7 @@ export default function AdminEventsPage() {
       const response = await fetch('/api/members')
       const data = await response.json()
       if (response.ok) {
-        setAvailableUsers(data.users || [])
+        setAvailableUsers(data.members || [])
       }
     } catch (error) {
       console.error('Failed to fetch users:', error)
@@ -330,17 +330,23 @@ setEditingEvent(null)
               <div>
                 <Label>Select Participants ({participantIds.length} selected)</Label>
                 <div className="border-2 border-gray-300 rounded-md p-3 max-h-48 overflow-y-auto">
-                  {availableUsers.map(user => (
-                    <label key={user.id} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-50">
-                      <input
-                        type="checkbox"
-                        checked={participantIds.includes(user.id)}
-                        onChange={() => toggleParticipant(user.id)}
-                        className="w-4 h-4"
-                      />
-                      <span className="text-sm">{user.profile?.fullName || user.email}</span>
-                    </label>
-                  ))}
+                  {availableUsers.length === 0 ? (
+                    <div className="text-sm text-muted-foreground text-center py-2">
+                      Loading users...
+                    </div>
+                  ) : (
+                    availableUsers.map(user => (
+                      <label key={user.id} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          checked={participantIds.includes(user.id)}
+                          onChange={() => toggleParticipant(user.id)}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">{user.profile?.fullName || 'Unknown User'}</span>
+                      </label>
+                    ))
+                  )}
                 </div>
               </div>
 
