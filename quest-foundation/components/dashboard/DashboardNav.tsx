@@ -3,7 +3,7 @@
 import { useSession, signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Menu, X, Home, Users, CreditCard, Settings, LogOut, FileText } from 'lucide-react'
+import { Menu, X, Home, Users, CreditCard, Settings, LogOut, FileText, Calendar } from 'lucide-react'
 import { useState } from 'react'
 import { useEffect } from 'react'
 import Image from 'next/image'
@@ -39,6 +39,7 @@ export default function DashboardNav({ session }: { session: any }) {
     { href: '/dashboard/profile', label: 'My Profile', icon: Users, show: true },
     { href: '/dashboard/membership-card', label: 'Membership Card', icon: CreditCard, show: !isNonAlumni },
     { href: '/dashboard/loans', label: 'Quest Care Loans', icon: FileText, show: true },
+    { href: isAdmin ? '/dashboard/admin/events' : '/dashboard/events', label: 'Events', icon: Calendar, show: true },
     { href: '/dashboard/admin', label: 'Admin Panel', icon: Settings, show: isAdmin },
     { href: '/dashboard/loan-manager', label: 'Loan Management', icon: FileText, show: isLoanManager },
   ]

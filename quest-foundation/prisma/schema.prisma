@@ -59,6 +59,11 @@ enum RepaymentStatus {
   OVERDUE
 }
 
+enum MediaVisibility {
+  admin_only
+  public
+}
+
 model User {
   id              String      @id @default(uuid())
   email           String      @unique
@@ -86,6 +91,7 @@ model User {
   assignedLoans   LoanApplication[] @relation("LoanAssignee")
   createdLoanCategories LoanCategory[]
   auditLogs       AuditLog[]
+  eventParticipants EventParticipant[]
 
   @@index([email])
   @@index([status])
@@ -320,4 +326,48 @@ model AuditLog {
   @@index([userId])
   @@index([entityType, entityId])
   @@index([timestamp])
+}
+model Event {
+  id                String              @id @default(uuid())
+  name              String
+  location          String?
+  mapLink           String?
+  startDate         DateTime
+  endDate           DateTime
+  description       String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  media             EventMedia[]
+  participants      EventParticipant[]
+
+  @@index([startDate])
+  @@index([endDate])
+}
+
+model EventMedia {
+  id         String             @id @default(uuid())
+  eventId    String
+  mediaUrl   String
+  mediaType  String?
+  visibility MediaVisibility    @default(public)
+  createdAt  DateTime           @default(now())
+  
+  event      Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([visibility])
+}
+
+model EventParticipant {
+  eventId    String
+  userId     String
+  addedAt    DateTime   @default(now())
+  
+  event      Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
 }
