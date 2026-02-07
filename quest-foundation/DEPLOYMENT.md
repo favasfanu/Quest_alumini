@@ -114,11 +114,17 @@ git push -u origin main
 
 5. Add Environment Variables:
    - Click "Environment Variables"
-   - Add these three variables:
+   - Add these required variables:
      ```
      DATABASE_URL = your-production-database-url
      NEXTAUTH_SECRET = generate-new-secret-with-openssl-rand-base64-32
      NEXTAUTH_URL = https://your-app-name.vercel.app
+     ```
+   - **IMPORTANT**: Add Cloudinary credentials for profile photo uploads (see CLOUDINARY_SETUP.md):
+     ```
+     CLOUDINARY_CLOUD_NAME = your-cloudinary-cloud-name
+     CLOUDINARY_API_KEY = your-cloudinary-api-key
+     CLOUDINARY_API_SECRET = your-cloudinary-api-secret
      ```
    - Make sure to use your PRODUCTION database URL, not localhost!
 

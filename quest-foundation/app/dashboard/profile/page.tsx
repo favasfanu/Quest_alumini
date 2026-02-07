@@ -1,14 +1,16 @@
 'use client'
 
-import { useEffect, useState, ChangeEvent, FormEvent } from 'react'
+import { useEffect, useState, ChangeEvent, FormEvent, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Edit, Trash2, Save, X, Upload } from 'lucide-react'
+import { Plus, Edit, Trash2, Save, X, Upload, Crop } from 'lucide-react'
 import Image from 'next/image'
+import Cropper from 'react-easy-crop'
+import type { Area } from 'react-easy-crop'
 
 const COUNTRY_STATE_OPTIONS: Record<string, string[]> = {
   Afghanistan: ['Kabul', 'Kandahar', 'Herat', 'Mazar-i-Sharif'],
@@ -234,6 +236,13 @@ export default function ProfilePage() {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoUploading, setPhotoUploading] = useState(false)
   const [photoError, setPhotoError] = useState<string | null>(null)
+  
+  // Image cropping state
+  const [showCropModal, setShowCropModal] = useState(false)
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null)
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
 
   useEffect(() => {
     fetchProfile()
@@ -308,8 +317,82 @@ export default function ProfilePage() {
     }
 
     setPhotoError(null)
-    setPhotoFile(file)
-    setPhotoPreview(URL.createObjectURL(file))
+    const imageUrl = URL.createObjectURL(file)
+    setImageToCrop(imageUrl)
+    setShowCropModal(true)
+    setCrop({ x: 0, y: 0 })
+    setZoom(1)
+  }
+
+  const onCropComplete = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
+    setCroppedAreaPixels(croppedAreaPixels)
+  }, [])
+
+  const createCroppedImage = async (imageSrc: string, pixelCrop: Area): Promise<Blob> => {
+    const image = await createImage(imageSrc)
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+
+    if (!ctx) {
+      throw new Error('No 2d context')
+    }
+
+    canvas.width = pixelCrop.width
+    canvas.height = pixelCrop.height
+
+    ctx.drawImage(
+      image,
+      pixelCrop.x,
+      pixelCrop.y,
+      pixelCrop.width,
+      pixelCrop.height,
+      0,
+      0,
+      pixelCrop.width,
+      pixelCrop.height
+    )
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(blob)
+        } else {
+          reject(new Error('Canvas is empty'))
+        }
+      }, 'image/jpeg', 0.95)
+    })
+  }
+
+  const createImage = (url: string): Promise<HTMLImageElement> => 
+    new Promise((resolve, reject) => {
+      const image = new window.Image()
+      image.addEventListener('load', () => resolve(image))
+      image.addEventListener('error', (error) => reject(error))
+      image.src = url
+    })
+
+  const handleCropSave = async () => {
+    if (!imageToCrop || !croppedAreaPixels) return
+
+    try {
+      const croppedBlob = await createCroppedImage(imageToCrop, croppedAreaPixels)
+      const croppedFile = new File([croppedBlob], 'profile-photo.jpg', { type: 'image/jpeg' })
+      
+      setPhotoFile(croppedFile)
+      setPhotoPreview(URL.createObjectURL(croppedBlob))
+      setShowCropModal(false)
+      setImageToCrop(null)
+    } catch (error) {
+      console.error('Error cropping image:', error)
+      setPhotoError('Failed to crop image. Please try again.')
+    }
+  }
+
+  const handleCropCancel = () => {
+    setShowCropModal(false)
+    setImageToCrop(null)
+    setCrop({ x: 0, y: 0 })
+    setZoom(1)
   }
 
   const handlePhotoUpload = async (event: FormEvent) => {
@@ -508,6 +591,64 @@ export default function ProfilePage() {
         <p className="text-muted-foreground mt-1">Manage your personal information</p>
       </div>
 
+      {/* Image Crop Modal */}
+      {showCropModal && imageToCrop && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg w-full max-w-2xl">
+            <div className="p-4 border-b">
+              <h2 className="text-xl font-semibold text-black">Crop & Adjust Photo</h2>
+              <p className="text-sm text-gray-600 mt-1">Drag to reposition, use slider to zoom</p>
+            </div>
+            <div className="relative h-[400px] bg-gray-100">
+              <Cropper
+                image={imageToCrop}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                cropShape="round"
+                showGrid={false}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={onCropComplete}
+              />
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="zoom" className="text-black">Zoom</Label>
+                <input
+                  id="zoom"
+                  type="range"
+                  min="1"
+                  max="3"
+                  step="0.1"
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+              <div className="flex gap-3 justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCropCancel}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleCropSave}
+                  className="bg-[#006400] hover:bg-[#005200]"
+                >
+                  <Crop className="w-4 h-4 mr-2" />
+                  Apply Crop
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Profile Photo */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -543,7 +684,7 @@ export default function ProfilePage() {
                   onChange={handlePhotoChange}
                 />
                 <p className="text-xs text-muted-foreground">
-                  JPEG, PNG or WebP. Max size 2MB.
+                  JPEG, PNG or WebP. Max size 2MB. You can crop and adjust after selection.
                 </p>
               </div>
               {photoError && (

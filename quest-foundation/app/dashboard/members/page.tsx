@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Mail, Phone, Linkedin, Instagram, MapPin, Briefcase, GraduationCap, Search, Filter } from 'lucide-react'
+import { Mail, Phone, Linkedin, Instagram, MapPin, Briefcase, GraduationCap, Search, Filter, ChevronDown, ChevronUp } from 'lucide-react'
 import Image from 'next/image'
 
 interface Member {
@@ -70,6 +70,7 @@ export default function MembersPage() {
     userType: '',
   })
   const [filterMetadata, setFilterMetadata] = useState<MemberFiltersMetadata | null>(null)
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
 
   const isNonAlumni = session?.user?.role === 'NON_ALUMNI_MEMBER'
 
@@ -137,18 +138,47 @@ export default function MembersPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="search">Name</Label>
-              <Input
-                id="search"
-                placeholder="Search by name..."
-                value={filters.search}
-                onChange={(e) => handleSearchChange('search', e.target.value)}
-              />
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="search">Name</Label>
+                <Input
+                  id="search"
+                  placeholder="Search by name..."
+                  value={filters.search}
+                  onChange={(e) => handleSearchChange('search', e.target.value)}
+                />
+              </div>
+              <div className="flex items-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className="w-full sm:w-auto"
+                >
+                  {showAdvancedFilters ? (
+                    <>
+                      <ChevronUp className="w-4 h-4 mr-2" />
+                      Hide Filters
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-4 h-4 mr-2" />
+                      More Filters
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
 
-            {!isNonAlumni && (
+            <div
+              className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-300 ease-in-out ${
+                showAdvancedFilters
+                  ? 'opacity-100 max-h-[1000px]'
+                  : 'opacity-0 max-h-0 overflow-hidden'
+              }`}
+            >
+              {!isNonAlumni && (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="batchYear">Batch Year</Label>
@@ -281,6 +311,7 @@ export default function MembersPage() {
                 />
               )}
             </div>
+          </div>
           </div>
 
           <div className="mt-4 flex items-center justify-between">

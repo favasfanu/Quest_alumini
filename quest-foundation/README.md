@@ -12,6 +12,7 @@ A complete, production-ready, mobile-friendly web platform for managing alumni, 
 
 ### Profile Management
 - Comprehensive profile with education, work experience, family details
+- Profile photo upload with cloud storage (Cloudinary) support
 - Multiple education records and job experiences
 - Privacy controls for each profile section
 - Non-alumni users have restricted visibility
@@ -82,7 +83,15 @@ Create a `.env` file in the root directory:
 DATABASE_URL="postgresql://user:password@localhost:5432/quest_foundation?schema=public"
 NEXTAUTH_SECRET="your-super-secret-key-change-in-production"
 NEXTAUTH_URL="http://localhost:3000"
+
+# Cloudinary (optional for local, required for production)
+# Leave empty for local development (uses file system)
+CLOUDINARY_CLOUD_NAME=""
+CLOUDINARY_API_KEY=""
+CLOUDINARY_API_SECRET=""
 ```
+
+**Note**: For production deployments, you must configure Cloudinary for profile photo uploads. See [CLOUDINARY_SETUP.md](CLOUDINARY_SETUP.md) for complete instructions.
 
 4. Set up the database:
 ```bash

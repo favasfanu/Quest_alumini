@@ -4,11 +4,27 @@ import { authOptions } from '@/lib/auth-config'
 import { prisma } from '@/lib/prisma'
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
+import { v2 as cloudinary } from 'cloudinary'
 
 export const runtime = 'nodejs'
 
 const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024 // 2MB
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+
+// Configure Cloudinary if credentials are provided
+const USE_CLOUDINARY = !!(
+  process.env.CLOUDINARY_CLOUD_NAME &&
+  process.env.CLOUDINARY_API_KEY &&
+  process.env.CLOUDINARY_API_SECRET
+)
+
+if (USE_CLOUDINARY) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  })
+}
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions)
@@ -60,16 +76,47 @@ export async function POST(request: Request) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
-    const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'profile-photos')
-    await mkdir(uploadsDir, { recursive: true })
+    let publicUrl: string
 
-    const fileName = `${targetUserId}-${Date.now()}.${extension}`
-    const filePath = path.join(uploadsDir, fileName)
+    if (USE_CLOUDINARY) {
+      // Upload to Cloudinary
+      try {
+        const uploadResult = await new Promise<any>((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            {
+              folder: 'quest-foundation/profile-photos',
+              public_id: `user-${targetUserId}-${Date.now()}`,
+              resource_type: 'image',
+              transformation: [
+                { width: 500, height: 500, crop: 'limit' },
+                { quality: 'auto' },
+              ],
+            },
+            (error, result) => {
+              if (error) reject(error)
+              else resolve(result)
+            },
+          )
+          uploadStream.end(buffer)
+        })
 
-    await writeFile(filePath, buffer)
+        publicUrl = uploadResult.secure_url
+      } catch (cloudinaryError) {
+        console.error('Cloudinary upload error:', cloudinaryError)
+        return NextResponse.json({ error: 'Failed to upload to cloud storage' }, { status: 500 })
+      }
+    } else {
+      // Local file system upload (development only)
+      const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
+      const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'profile-photos')
+      await mkdir(uploadsDir, { recursive: true })
 
-    const publicUrl = `/uploads/profile-photos/${fileName}`
+      const fileName = `${targetUserId}-${Date.now()}.${extension}`
+      const filePath = path.join(uploadsDir, fileName)
+
+      await writeFile(filePath, buffer)
+      publicUrl = `/uploads/profile-photos/${fileName}`
+    }
 
     const profile = await prisma.profile.update({
       where: { userId: targetUserId },
